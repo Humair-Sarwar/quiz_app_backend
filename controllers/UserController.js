@@ -1,16 +1,16 @@
 const Joi = require("joi");
 const bcrypt = require("bcrypt");
 const User = require("../models/user");
-const Media = require('../models/media')
-const jwt = require('jsonwebtoken')
-require('dotenv').config()
+const Media = require("../models/media");
+const jwt = require("jsonwebtoken");
+require("dotenv").config();
 const signup = async (req, res, next) => {
   const signupSchema = Joi.object({
     name: Joi.string().min(3).max(30).required(),
     email: Joi.string().email().required(),
     password: Joi.string().required(),
     confirmPassword: Joi.ref("password"),
-    type: Joi.number().optional()
+    type: Joi.number().optional(),
   });
 
   const { error } = signupSchema.validate(req.body);
@@ -48,17 +48,17 @@ const signup = async (req, res, next) => {
     return next(error);
   }
 
-  return res.status(201).json({ message: "User Created Successfully!" });
+  return res.status(201).json({ message: "User Created Successfully!", status: 200 });
 };
 
 const users = async (req, res) => {
   try {
     // Extract query params (support both body and query)
-    const { 
-      type = 1, 
-      search = "", 
-      page = 1, 
-      limit = 10 
+    const {
+      type = 1,
+      search = "",
+      page = 1,
+      limit = 10,
     } = req.query.type ? req.query : req.body;
 
     // Build query object dynamically
@@ -111,7 +111,6 @@ const users = async (req, res) => {
   }
 };
 
-
 const login = async (req, res, next) => {
   const loginSchema = Joi.object({
     email: Joi.string().min(3).max(30).required(),
@@ -136,74 +135,70 @@ const login = async (req, res, next) => {
         .json({ message: "Password does not match!", success: false });
     }
     const token = jwt.sign(
-      {userId: user.id, useremail: user.email},
+      { userId: user.id, useremail: user.email },
       process.env.JWT_SECRET,
-      {expiresIn: '24h'}
-    )
-    res
-      .status(200)
-      .json({
-        message: "User login successfully!",
-        success: true,
-        auth: true,
-        user,
-        token
-      });
+      { expiresIn: "24h" }
+    );
+    res.status(200).json({
+      message: "User login successfully!",
+      success: true,
+      auth: true,
+      user,
+      token,
+    });
   } catch (error) {
     res.status(500).json({ message: "Internal Server Error!", success: false });
   }
 };
 
-const getAdminUser = async (req, res, next) =>{
-    const getAdminUserSchema = Joi.object({
-        id: Joi.string().required(),
-        type: Joi.number().required().default(2),
-    })
-    const {error} = getAdminUserSchema.validate(req.body);
-    if(error){
-        return next(error);
+const getAdminUser = async (req, res, next) => {
+  const getAdminUserSchema = Joi.object({
+    id: Joi.string().required(),
+    type: Joi.number().required().default(2),
+  });
+  const { error } = getAdminUserSchema.validate(req.body);
+  if (error) {
+    return next(error);
+  }
+  const { id, type } = req.body;
+  try {
+    const result = await User.findOne({ _id: id, type });
+    if (!result) {
+      const error = {
+        status: 404,
+        message: "User not found!",
+      };
+      return next(error);
     }
-    const {id, type} = req.body;
-    try {
-        const result = await User.findOne({_id: id, type});
-        if(!result){
-            const error = {
-                status: 404,
-                message: 'User not found!'
-            }
-            return next(error)
-        }
-        return res.status(200).json({status: 200, message: 'User successfully get!', data: result})
-    } catch (error) {
-        res.status(500).json({ message: "Internal Server Error!" });
-    }
-}
+    return res
+      .status(200)
+      .json({ status: 200, message: "User successfully get!", data: result });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error!" });
+  }
+};
 
 const updateUserAdmin = async (req, res, next) => {
-    const updateUserAdmin = Joi.object({
-        image: Joi.string().optional(),
-        name: Joi.string().required(),
-        email: Joi.string().email().required(),
-        id: Joi.string().required()
-    })
-    const {error} = updateUserAdmin.validate(req.body);
-    if(error){
-        return next(error);
-    }
-    const {image, name, email, id} = req.body;
-    try {
-        const result = await User.updateOne({_id: id}, {image, name, email});
-        return res.status(200).json({status: 200, message: 'User successfully updated!'});
-    } catch (error) {
-        res.status(500).json({ message: "Internal Server Error!" });
-    }
-}
-
-
-
-
-
-
+  const updateUserAdmin = Joi.object({
+    image: Joi.string().optional(),
+    name: Joi.string().required(),
+    email: Joi.string().email().required(),
+    id: Joi.string().required(),
+  });
+  const { error } = updateUserAdmin.validate(req.body);
+  if (error) {
+    return next(error);
+  }
+  const { image, name, email, id } = req.body;
+  try {
+    const result = await User.updateOne({ _id: id }, { image, name, email });
+    return res
+      .status(200)
+      .json({ status: 200, message: "User successfully updated!" });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error!" });
+  }
+};
 
 const getUserDetails = async (req, res, next) => {
   try {
@@ -219,7 +214,9 @@ const getUserDetails = async (req, res, next) => {
 
     // 🔍 Find user (excluding password)
     const user = await User.findById(user_id)
-      .select("name email type image cover_image phone country createdAt updatedAt")
+      .select(
+        "name email type image cover_image phone country createdAt updatedAt"
+      )
       .lean();
 
     if (!user) {
@@ -235,7 +232,6 @@ const getUserDetails = async (req, res, next) => {
       message: "User details fetched successfully!",
       data: user,
     });
-
   } catch (error) {
     console.error("getUserDetails error:", error);
     return res.status(500).json({
@@ -245,19 +241,6 @@ const getUserDetails = async (req, res, next) => {
     });
   }
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 const updateUserProfile = async (req, res, next) => {
   try {
@@ -273,7 +256,9 @@ const updateUserProfile = async (req, res, next) => {
 
     // 🖼️ Handle uploaded images (if any)
     const image = req.files?.image ? req.files.image[0].filename : null;
-    const cover_image = req.files?.cover_image ? req.files.cover_image[0].filename : null;
+    const cover_image = req.files?.cover_image
+      ? req.files.cover_image[0].filename
+      : null;
 
     // 🧩 Build update object dynamically
     const updateData = {};
@@ -304,7 +289,6 @@ const updateUserProfile = async (req, res, next) => {
       message: "Profile updated successfully!",
       data: updatedUser,
     });
-
   } catch (error) {
     console.error("updateUserProfile error:", error);
     return res.status(500).json({
@@ -315,16 +299,6 @@ const updateUserProfile = async (req, res, next) => {
   }
 };
 
-
-
-
-
-
-
-
-
-
-
 module.exports = {
   signup,
   users,
@@ -332,5 +306,5 @@ module.exports = {
   getAdminUser,
   updateUserAdmin,
   getUserDetails,
-  updateUserProfile
+  updateUserProfile,
 };

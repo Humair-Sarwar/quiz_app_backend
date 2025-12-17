@@ -1,4 +1,5 @@
 const Quiz = require('../models/quiz_list');
+const Category = require('../models/category')
 const Joi = require("joi");
 
 
@@ -209,32 +210,42 @@ const getAllQuiz = async (req, res) => {
 const getAllQuizWebsite = async (req, res, next) => {
   try {
     const { 
-      category_id, 
+      category_slug, 
       search = "", 
       page = 1, 
       limit = 10 
-    } = req.body;
+    } = req.query;
 
-    // ✅ Validate category_id
-    if (!category_id) {
+    // 🧠 Validate category_slug
+    if (!category_slug) {
       return res.status(400).json({
         status: 400,
-        message: "category_id is required",
+        message: "category_slug is required",
       });
     }
 
-    // ✅ Build query object
-    const query = { category_id };
+    // 🗂️ Find category by slug
+    const category = await Category.findOne({ slug: category_slug }).lean();
+    console.log("Found category:", category);
+    if (!category) {
+      return res.status(404).json({
+        status: 404,
+        message: "Category not found!",
+      });
+    }
+
+    // 🔍 Build quiz query
+    const query = { category_id: category._id };
     if (search.trim()) {
       query.quiz_title = { $regex: search, $options: "i" };
     }
 
-    // ✅ Pagination setup
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
+    // 🔢 Pagination logic
+    const pageNum = Math.max(parseInt(page), 1);
+    const limitNum = Math.max(parseInt(limit), 1);
     const skip = (pageNum - 1) * limitNum;
 
-    // ✅ Fetch paginated data + total count in parallel
+    // 🚀 Fetch paginated data and total count in parallel
     const [quizzes, total] = await Promise.all([
       Quiz.find(query)
         .sort({ quiz_sort_order: 1, createdAt: -1 })
@@ -244,14 +255,11 @@ const getAllQuizWebsite = async (req, res, next) => {
       Quiz.countDocuments(query),
     ]);
 
-    if (!quizzes.length) {
-      return res.status(404).json({
-        status: 404,
-        message: "No quizzes found for this category!",
-      });
-    }
+    // 📊 Calculate record range
+    const firstRecord = total === 0 ? 0 : skip + 1;
+    const lastRecord = Math.min(skip + quizzes.length, total);
 
-    // ✅ Format response (fast + clean)
+    // 🧩 Format quiz data
     const formatted = quizzes.map(q => ({
       _id: q._id,
       quiz_title: q.quiz_title,
@@ -273,6 +281,8 @@ const getAllQuizWebsite = async (req, res, next) => {
         totalPages: Math.ceil(total / limitNum),
         currentPage: pageNum,
         limit: limitNum,
+        firstRecord,
+        lastRecord,
       },
     });
 
@@ -285,6 +295,7 @@ const getAllQuizWebsite = async (req, res, next) => {
     });
   }
 };
+
 
 
 

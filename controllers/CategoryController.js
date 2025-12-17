@@ -243,12 +243,10 @@ const deleteSelectedCategory = async (req, res, next) => {
 
 const getAllCategoriesWebsite = async (req, res, next) => {
   try {
-    const { search = "", page = 1, limit = 10 } = req.body;
+    const { search = "", page = 1, limit = 10 } = req.query;
 
-    // Build query
+    // 🔍 Build search query
     const query = {};
-
-    // Add search filter if provided
     if (search.trim()) {
       query.$or = [
         { category_name: { $regex: search, $options: "i" } },
@@ -256,30 +254,26 @@ const getAllCategoriesWebsite = async (req, res, next) => {
       ];
     }
 
-    // Pagination logic
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
+    // 🔢 Pagination logic
+    const pageNum = Math.max(parseInt(page), 1);
+    const limitNum = Math.max(parseInt(limit), 1);
     const skip = (pageNum - 1) * limitNum;
 
-    // Fetch data and total count in parallel
+    // 🚀 Fetch data and total count in parallel
     const [categories, total] = await Promise.all([
       Category.find(query)
-        .sort({ sort_order: 1, createdAt: -1 }) // ordered by sort_order then newest
+        .sort({ sort_order: 1, createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
         .lean(),
       Category.countDocuments(query),
     ]);
 
-    // If no categories found
-    if (!categories.length) {
-      return res.status(404).json({
-        status: 404,
-        message: "No categories found!",
-      });
-    }
+    // 📊 Calculate record range
+    const firstRecord = total === 0 ? 0 : skip + 1;
+    const lastRecord = Math.min(skip + categories.length, total);
 
-    // Success response
+    // ✅ Success response
     return res.status(200).json({
       status: 200,
       message: "Categories fetched successfully!",
@@ -289,6 +283,8 @@ const getAllCategoriesWebsite = async (req, res, next) => {
         totalPages: Math.ceil(total / limitNum),
         currentPage: pageNum,
         limit: limitNum,
+        firstRecord,
+        lastRecord,
       },
     });
   } catch (error) {
@@ -300,6 +296,7 @@ const getAllCategoriesWebsite = async (req, res, next) => {
     });
   }
 };
+
 
 
 
