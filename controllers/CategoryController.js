@@ -9,7 +9,7 @@ const createCategory = async (req, res, next) => {
     category_name: Joi.string().required(),
     slug: Joi.string().required(),
     sort_order: Joi.number().required(),
-    image: Joi.string().optional(),
+    image: Joi.string().allow("").optional()
   });
   let { error } = categorySchema.validate(req.body);
   if (error) {
@@ -94,10 +94,11 @@ const deleteCategory = async (req, res, next) => {
 };
 
 const updateCategory = async (req, res, next)=>{
+  console.log(req.body, '------>>---')
     const updateCategorySchema = Joi.object({
         id: Joi.string().required(),
         business_id: Joi.string().required(),
-        image: Joi.string().optional(),
+        image: Joi.string().allow("").optional(),
         category_name: Joi.string().required(),
         slug: Joi.string().required(),
         sort_order: Joi.number().required()
@@ -130,12 +131,12 @@ const getAllCategories = async (req, res, next) => {
     business_id: Joi.string().required(),
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(5),
-    search: Joi.string().allow('').optional()
+    search: Joi.string().allow("").optional(),
   });
 
   const { error, value } = getAllCategoriesSchema.validate({
-    ...req.query, // ✅ GET requests usually use query params
-    ...req.body,  // still allow body if needed
+    ...req.query,
+    ...req.body,
   });
 
   if (error) {
@@ -147,40 +148,53 @@ const getAllCategories = async (req, res, next) => {
   try {
     const skip = (page - 1) * limit;
 
-    // ✅ Dynamic query
+    // 🔍 Build query
     const query = { business_id };
-    if (search) {
-      query.category_name = { $regex: search, $options: 'i' };
+
+    if (search?.trim()) {
+      query.$or = [
+        { category_name: { $regex: search, $options: "i" } },
+        { slug: { $regex: search, $options: "i" } },
+      ];
     }
 
-    // ✅ Parallel query execution for speed
+    // 🚀 Fetch data & count
     const [categories, total] = await Promise.all([
       Category.find(query)
-        .sort({ createdAt: -1 })
+        .sort({ sort_order: 1, createdAt: -1 })
         .skip(skip)
-        .limit(limit),
-      Category.countDocuments(query)
+        .limit(limit)
+        .lean(),
+      Category.countDocuments(query),
     ]);
 
-    const totalPages = Math.ceil(total / limit);
+    // 📊 Record range
+    const firstRecord = total === 0 ? 0 : skip + 1;
+    const lastRecord = Math.min(skip + categories.length, total);
 
     return res.status(200).json({
       status: 200,
+      message: "Categories fetched successfully!",
       data: categories,
       pagination: {
         totalItems: total,
-        totalPages,
+        totalPages: Math.ceil(total / limit),
         currentPage: page,
         limit,
+        firstRecord,
+        lastRecord,
       },
     });
   } catch (error) {
+    console.error("getAllCategories error:", error);
     return res.status(500).json({
-      message: 'Internal server error!',
+      status: 500,
+      message: "Internal server error!",
       error: error.message,
     });
   }
 };
+
 
 
 

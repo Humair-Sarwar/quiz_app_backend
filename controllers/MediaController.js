@@ -49,14 +49,13 @@ const addMediaImage = async (req, res, next) => {
 };
 
 const getMediaImage = async (req, res, next) => {
-  // ✅ Validate input
   const schema = Joi.object({
     business_id: Joi.string().required(),
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(10),
   });
 
-  const { error, value } = schema.validate(req.body);
+  const { error, value } = schema.validate(req.query);
   if (error) {
     return next(error);
   }
@@ -64,30 +63,38 @@ const getMediaImage = async (req, res, next) => {
   const { business_id, page, limit } = value;
 
   try {
-    // ✅ Pagination logic
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // ✅ Fetch data & count in parallel
     const [result, total] = await Promise.all([
       Media.find({ business_id })
-        .sort({ createdAt: -1 }) // latest first
+        .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
         .lean(),
       Media.countDocuments({ business_id }),
     ]);
 
-    // ✅ If no media found
     if (!result.length) {
       return res.status(404).json({
         status: 404,
         message: "No media found for this business!",
+        data: [],
+        pagination: {
+          totalItems: total,
+          totalPages: 0,
+          currentPage: pageNum,
+          limit: limitNum,
+          firstRecord: 0,
+          lastRecord: 0,
+        },
       });
     }
 
-    // ✅ Send success response
+    const firstRecord = skip + 1;
+    const lastRecord = Math.min(skip + result.length, total);
+
     return res.status(200).json({
       status: 200,
       message: "Media images fetched successfully!",
@@ -97,6 +104,8 @@ const getMediaImage = async (req, res, next) => {
         totalPages: Math.ceil(total / limitNum),
         currentPage: pageNum,
         limit: limitNum,
+        firstRecord,
+        lastRecord,
       },
     });
   } catch (error) {
@@ -108,6 +117,7 @@ const getMediaImage = async (req, res, next) => {
     });
   }
 };
+
 
 
 const deleteMediaImage = async (req, res) => {
