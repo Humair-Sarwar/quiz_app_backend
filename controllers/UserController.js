@@ -61,6 +61,10 @@ const users = async (req, res) => {
       limit = 10,
     } = req.query.type ? req.query : req.body;
 
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
     // Build query object dynamically
     const query = {};
     if (type) query.type = type;
@@ -70,9 +74,6 @@ const users = async (req, res) => {
         { email: { $regex: search, $options: "i" } },
       ];
     }
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const limitNum = parseInt(limit);
 
     // Fetch users with pagination
     const [users, total] = await Promise.all([
@@ -91,6 +92,10 @@ const users = async (req, res) => {
       });
     }
 
+    // Calculate first and last record
+    const firstRecord = total === 0 ? 0 : skip + 1;
+    const lastRecord = Math.min(skip + users.length, total);
+
     return res.status(200).json({
       status: 200,
       message: "Users fetched successfully!",
@@ -98,8 +103,10 @@ const users = async (req, res) => {
       pagination: {
         totalItems: total,
         totalPages: Math.ceil(total / limitNum),
-        currentPage: parseInt(page),
+        currentPage: pageNum,
         limit: limitNum,
+        firstRecord,
+        lastRecord,
       },
     });
   } catch (error) {
@@ -110,6 +117,8 @@ const users = async (req, res) => {
     });
   }
 };
+
+
 
 const login = async (req, res, next) => {
   const loginSchema = Joi.object({
@@ -156,11 +165,11 @@ const getAdminUser = async (req, res, next) => {
     id: Joi.string().required(),
     type: Joi.number().required().default(2),
   });
-  const { error } = getAdminUserSchema.validate(req.body);
+  const { error } = getAdminUserSchema.validate(req.query);
   if (error) {
     return next(error);
   }
-  const { id, type } = req.body;
+  const { id, type } = req.query;
   try {
     const result = await User.findOne({ _id: id, type });
     if (!result) {
@@ -180,7 +189,7 @@ const getAdminUser = async (req, res, next) => {
 
 const updateUserAdmin = async (req, res, next) => {
   const updateUserAdmin = Joi.object({
-    image: Joi.string().optional(),
+    image: Joi.string().allow("").optional(),
     name: Joi.string().required(),
     email: Joi.string().email().required(),
     id: Joi.string().required(),
@@ -202,7 +211,7 @@ const updateUserAdmin = async (req, res, next) => {
 
 const getUserDetails = async (req, res, next) => {
   try {
-    const { user_id } = req.body;
+    const { user_id } = req.query;
 
     // 🧠 Validate
     if (!user_id) {

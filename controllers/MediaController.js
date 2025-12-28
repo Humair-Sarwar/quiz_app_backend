@@ -76,21 +76,21 @@ const getMediaImage = async (req, res, next) => {
       Media.countDocuments({ business_id }),
     ]);
 
-    if (!result.length) {
-      return res.status(404).json({
-        status: 404,
-        message: "No media found for this business!",
-        data: [],
-        pagination: {
-          totalItems: total,
-          totalPages: 0,
-          currentPage: pageNum,
-          limit: limitNum,
-          firstRecord: 0,
-          lastRecord: 0,
-        },
-      });
-    }
+    // if (!result.length) {
+    //   return res.status(200).json({
+    //     status: 200,
+    //     message: "No media found for this business!",
+    //     data: [],
+    //     pagination: {
+    //       totalItems: total,
+    //       totalPages: 0,
+    //       currentPage: pageNum,
+    //       limit: limitNum,
+    //       firstRecord: 0,
+    //       lastRecord: 0,
+    //     },
+    //   });
+    // }
 
     const firstRecord = skip + 1;
     const lastRecord = Math.min(skip + result.length, total);
