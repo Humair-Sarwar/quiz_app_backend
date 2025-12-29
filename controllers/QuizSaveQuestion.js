@@ -327,7 +327,7 @@ const retakeQuiz = async (req, res) => {
 
 const getUserAttemptedQuizzes = async (req, res) => {
   try {
-    const { user_id } = req.body;
+    const { user_id } = req.query;
 
     if (!user_id) {
       return res.status(400).json({
@@ -339,12 +339,7 @@ const getUserAttemptedQuizzes = async (req, res) => {
     // ✅ Find all attempted quizzes for this user
     const attemptedQuizzes = await UserAttemptedQuiz.find({ user_id }).lean();
 
-    if (!attemptedQuizzes.length) {
-      return res.status(404).json({
-        status: 404,
-        message: "No attempted quizzes found for this user!",
-      });
-    }
+    
 
     // ✅ Process each attempted quiz
     const results = await Promise.all(
