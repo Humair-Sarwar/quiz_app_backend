@@ -49,11 +49,10 @@ const generalSettings = async (req, res, next) => {
 
 
 
-const getGeneralSettings = async (req, res, next) => {
+const getGeneralSettings = async (req, res) => {
   try {
-    const { business_id } = req.body;
+    const { business_id } = req.query;
 
-    // 🧩 Validate business_id
     if (!business_id) {
       return res.status(400).json({
         status: 400,
@@ -61,26 +60,18 @@ const getGeneralSettings = async (req, res, next) => {
       });
     }
 
-    // 🔍 Find settings for this business
     const setting = await WebsiteSetting.findOne(
       { business_id },
-      { general: 1, _id: 0 } // only return general section
+      { general: 1, _id: 0 }
     ).lean();
 
-    // ⚠️ Handle no data case
-    if (!setting || !setting.general) {
-      return res.status(404).json({
-        status: 404,
-        message: "No general settings found for this business!",
-      });
-    }
-
-    // ✅ Return success response
+    // ✅ SAFE RETURN
     return res.status(200).json({
       status: 200,
       message: "General settings fetched successfully!",
-      data: setting.general,
+      data: setting?.general ?? null,
     });
+
   } catch (error) {
     console.error("getGeneralSettings error:", error);
     return res.status(500).json({
@@ -90,6 +81,7 @@ const getGeneralSettings = async (req, res, next) => {
     });
   }
 };
+
 
 
 
@@ -144,7 +136,7 @@ const createOrUpdateSocialLinks = async (req, res, next) => {
 
 const getSocialLinks = async (req, res, next) => {
   try {
-    const { business_id } = req.body;
+    const { business_id } = req.query;
 
     // 🧩 Validate business_id
     if (!business_id) {
@@ -227,7 +219,7 @@ const createOrUpdateWebsiteServices = async (req, res, next) => {
 
 const getWebsiteServices = async (req, res, next) => {
   try {
-    const { business_id } = req.body; // you can also switch to req.query if you prefer GET with query params
+    const { business_id } = req.query;
 
     // 🧩 Validate input
     if (!business_id) {
@@ -242,18 +234,18 @@ const getWebsiteServices = async (req, res, next) => {
       .select("website_services -_id")
       .lean();
 
-    if (!setting || !setting.website_services) {
-      return res.status(404).json({
-        status: 404,
-        message: "No website services found for this business_id!",
-      });
-    }
+    // if (!setting || !setting.website_services) {
+    //   return res.status(404).json({
+    //     status: 404,
+    //     message: "No website services found for this business_id!",
+    //   });
+    // }
 
     // ✅ Success response
     return res.status(200).json({
       status: 200,
       message: "Website services fetched successfully!",
-      data: setting.website_services,
+      data: setting?.website_services || [],
     });
   } catch (error) {
     console.error("getWebsiteServices error:", error);
