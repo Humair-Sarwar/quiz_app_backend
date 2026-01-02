@@ -1,13 +1,9 @@
-
-
-
 const UserAttemptedQuiz = require("../models/user_attempted_quiz");
 const mongoose = require("mongoose");
 
 const Quiz = require("../models//quiz_list");
-const Category = require("../models/category");
 
-const quizSaveQuestion = async (req, res, next) => {
+const quizSaveQuestion = async (req, res) => {
   try {
     const {
       user_id,
@@ -18,99 +14,103 @@ const quizSaveQuestion = async (req, res, next) => {
       question_group,
     } = req.body;
 
-    // ✅ Basic validation
-    if (!user_id || !quiz_id || !question_group || !Array.isArray(question_group)) {
-      return res.status(400).json({
-        status: 400,
-        message: "Missing required fields or invalid question data",
-      });
+    if (
+      !user_id ||
+      !quiz_id ||
+      !question_group ||
+      !Array.isArray(question_group)
+    ) {
+      return res
+        .status(400)
+        .json({ status: 400, message: "Required fields are missing!" });
     }
 
-    // ✅ Check if quiz attempt already exists for this user
+    const masterQuiz = await Quiz.findById(quiz_id);
+    if (!masterQuiz) {
+      return res
+        .status(404)
+        .json({ status: 404, message: "Original Quiz not found!" });
+    }
+
+    const processedQuestions = question_group.map((studentQ) => {
+      const masterQ = masterQuiz.question_group.find(
+        (mq) => mq.question_title === studentQ.question_title
+      );
+
+      return {
+        question_title: studentQ.question_title,
+        question_sort_order:
+          studentQ.question_sort_order || masterQ?.question_sort_order || 1,
+        question_type: studentQ.question_type || masterQ?.question_type || 1, // Fixes the validation error
+        question_time: studentQ.question_time || masterQ?.question_time || "",
+        options: studentQ.options.map((studentOpt) => {
+          const masterOpt = masterQ?.options.find(
+            (mo) => mo.option_label === studentOpt.option_label
+          );
+
+          return {
+            option_label: studentOpt.option_label,
+            option_sort_order:
+              studentOpt.option_sort_order || masterOpt?.option_sort_order || 1,
+            is_correct: masterOpt ? masterOpt.answer : false,
+            answer: studentOpt.answer || false,
+          };
+        }),
+      };
+    });
+
     let existingAttempt = await UserAttemptedQuiz.findOne({ user_id, quiz_id });
 
     if (!existingAttempt) {
-      // 🆕 Create new attempt if not exist
       const newAttempt = await UserAttemptedQuiz.create({
         user_id,
         quiz_id,
         quiz_title,
         quiz_sort_order,
         quiz_time,
-        question_group,
+        question_group: processedQuestions,
       });
-
-      return res.status(201).json({
-        status: 201,
-        message: "Quiz attempt created successfully!",
-        data: newAttempt,
-      });
+      return res.status(201).json({ status: 201, data: newAttempt });
     } else {
-      // 🔁 Add new question(s) to existing quiz attempt
-      await UserAttemptedQuiz.updateOne(
+      const updated = await UserAttemptedQuiz.findOneAndUpdate(
         { user_id, quiz_id },
-        { $push: { question_group: { $each: question_group } } }
+        { $push: { question_group: { $each: processedQuestions } } },
+        { new: true }
       );
-
-      const updatedAttempt = await UserAttemptedQuiz.findOne({ user_id, quiz_id });
-
-      return res.status(200).json({
-        status: 200,
-        message: "Question added successfully to quiz attempt!",
-        data: updatedAttempt,
-      });
+      return res.status(200).json({ status: 200, data: updated });
     }
   } catch (error) {
-    console.error("quizSaveQuestion error:", error);
-    return res.status(500).json({
-      status: 500,
-      message: "Internal server error!",
-      error: error.message,
-    });
+    console.error("Save Error:", error);
+    return res.status(500).json({ status: 500, error: error.message });
   }
 };
 
-
-
-
-
-
-
-
 const getQuizResult = async (req, res, next) => {
   try {
-    const { id } = req.body; // attempted quiz _id (UserAttemptedQuiz._id)
+    const { id } = req.query;
 
-    // ✅ Find attempted quiz
     const attemptedQuiz = await UserAttemptedQuiz.findById(id).lean();
     if (!attemptedQuiz) {
-      return res.status(404).json({
-        status: 404,
-        message: "Attempted quiz not found!",
-      });
+      return res
+        .status(404)
+        .json({ status: 404, message: "Attempted quiz not found!" });
     }
 
-    // ✅ Get quiz_id (could be ObjectId or string)
     const quizId = attemptedQuiz.quiz_id;
-
     let originalQuiz;
 
-    // ✅ Check if quiz_id is a valid ObjectId
     if (mongoose.Types.ObjectId.isValid(quizId)) {
       originalQuiz = await Quiz.findById(quizId).lean();
     } else {
-      // If quiz_id is custom string, match manually
       originalQuiz = await Quiz.findOne({ quiz_id: quizId }).lean();
     }
 
     if (!originalQuiz) {
-      return res.status(404).json({
-        status: 404,
-        message: "Original quiz not found!",
-      });
+      return res
+        .status(404)
+        .json({ status: 404, message: "Original quiz not found!" });
     }
 
-    // ✅ Compare user answers with original quiz
     const userQuestions = attemptedQuiz.question_group || [];
     const originalQuestions = originalQuiz.question_group || [];
 
@@ -119,56 +119,64 @@ const getQuizResult = async (req, res, next) => {
     let incorrect = 0;
     let skipped = 0;
 
-    userQuestions.forEach((userQ, index) => {
-      const originalQ = originalQuestions[index];
-      if (!originalQ) return skipped++;
+    const detailed_questions = originalQuestions.map((originalQ) => {
+      const userQ = userQuestions.find(
+        (uq) => uq.question_title === originalQ.question_title
+      );
 
-      const correctOptions = originalQ.options.filter(o => o.answer).map(o => o.option_label);
-      const selectedOptions = userQ.options.filter(o => o.answer).map(o => o.option_label);
+      const correctOpt = originalQ.options.find((o) => o.answer === true);
+      const userOpt = userQ?.options?.find((o) => o.answer === true);
 
-      if (selectedOptions.length === 0) {
-        skipped++;
-      } else if (
-        correctOptions.length === selectedOptions.length &&
-        correctOptions.every(label => selectedOptions.includes(label))
-      ) {
-        correct++;
+      const all_options = originalQ.options.map((opt) => ({
+        label: opt.option_label,
+        is_correct: opt.answer === true,
+      }));
+
+      let status = "skipped";
+      if (userOpt) {
+        status =
+          userOpt.option_label === correctOpt?.option_label
+            ? "correct"
+            : "incorrect";
+        status === "correct" ? correct++ : incorrect++;
       } else {
-        incorrect++;
+        skipped++;
       }
+
+      return {
+        question_title: originalQ.question_title,
+        status,
+        user_choice: userOpt?.option_label || null,
+        correct_answer: correctOpt?.option_label || null,
+        all_options,
+      };
     });
 
-    // ✅ Return result summary
+    const score =
+      totalQuestions > 0 ? Math.round((correct / totalQuestions) * 100) : 0;
+
     return res.status(200).json({
       status: 200,
-      message: "Quiz result calculated successfully!",
-      result: {
-        totalQuestions,
+      message: "Result calculated!",
+      data: {
+        attempted_quiz_id: attemptedQuiz._id,
+        total_questions: totalQuestions,
         correct,
         incorrect,
         skipped,
+        score,
+        detailed_questions,
       },
     });
-
   } catch (error) {
-    console.error("getQuizResult error:", error);
-    return res.status(500).json({
-      status: 500,
-      message: "Internal Server Error",
-      error: error.message,
-    });
+    console.error("Error in getQuizResult:", error);
+    return res.status(500).json({ status: 500, message: "Internal Error" });
   }
 };
 
-
-
-
-
-
-
 const reviewQuiz = async (req, res) => {
   try {
-    const { id } = req.body; // attempted quiz _id
+    const { id } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -177,7 +185,6 @@ const reviewQuiz = async (req, res) => {
       });
     }
 
-    // ✅ Get attempted quiz
     const attempted = await UserAttemptedQuiz.findById(id).lean();
     if (!attempted) {
       return res.status(404).json({
@@ -186,7 +193,6 @@ const reviewQuiz = async (req, res) => {
       });
     }
 
-    // ✅ Get original quiz by quiz_id (string)
     const originalQuiz = await Quiz.findOne({ _id: attempted.quiz_id }).lean();
     if (!originalQuiz) {
       return res.status(404).json({
@@ -199,7 +205,6 @@ const reviewQuiz = async (req, res) => {
     let incorrect = 0;
     let skipped = 0;
 
-    // ✅ Build detailed review
     const review = attempted.question_group.map((attemptedQ) => {
       const originalQ = originalQuiz.question_group.find(
         (q) => q.question_title === attemptedQ.question_title
@@ -222,7 +227,6 @@ const reviewQuiz = async (req, res) => {
         const is_user_choice = !!opt.answer;
         const is_admin_choice = adminOpt ? !!adminOpt.answer : false;
 
-        // ✅ Determine if user was correct on this option
         const is_correct = is_user_choice && is_admin_choice;
 
         if (is_correct) correct++;
@@ -237,7 +241,6 @@ const reviewQuiz = async (req, res) => {
         };
       });
 
-      // ✅ Check skipped
       if (!attemptedQ.options.some((o) => o.answer)) skipped++;
 
       return {
@@ -247,7 +250,6 @@ const reviewQuiz = async (req, res) => {
       };
     });
 
-    // ✅ Summary
     const summary = {
       totalQuestions: attempted.question_group.length,
       correct,
@@ -271,14 +273,10 @@ const reviewQuiz = async (req, res) => {
   }
 };
 
-
-
-
 const retakeQuiz = async (req, res) => {
   try {
     const { id, user_id } = req.body;
 
-    // ✅ Validate input
     if (!id || !user_id) {
       return res.status(400).json({
         status: 400,
@@ -286,7 +284,6 @@ const retakeQuiz = async (req, res) => {
       });
     }
 
-    // ✅ Check if attempted quiz exists for this user
     const attemptedQuiz = await UserAttemptedQuiz.findOne({
       _id: id,
       user_id: user_id,
@@ -299,7 +296,6 @@ const retakeQuiz = async (req, res) => {
       });
     }
 
-    // ✅ Delete the attempted quiz
     await UserAttemptedQuiz.deleteOne({ _id: id, user_id: user_id });
 
     return res.status(200).json({
@@ -316,15 +312,6 @@ const retakeQuiz = async (req, res) => {
   }
 };
 
-
-
-
-
-
-
-
-
-
 const getUserAttemptedQuizzes = async (req, res) => {
   try {
     const { user_id } = req.query;
@@ -335,13 +322,8 @@ const getUserAttemptedQuizzes = async (req, res) => {
         message: "user_id is required!",
       });
     }
-
-    // ✅ Find all attempted quizzes for this user
     const attemptedQuizzes = await UserAttemptedQuiz.find({ user_id }).lean();
 
-    
-
-    // ✅ Process each attempted quiz
     const results = await Promise.all(
       attemptedQuizzes.map(async (attempted) => {
         const quiz = await Quiz.findOne({ _id: attempted.quiz_id }).lean();
@@ -355,7 +337,6 @@ const getUserAttemptedQuizzes = async (req, res) => {
           };
         }
 
-        // Compare answers
         const questions = attempted.question_group.map((userQ) => {
           const adminQ = quiz.question_group.find(
             (q) => q.question_title === userQ.question_title
@@ -385,7 +366,6 @@ const getUserAttemptedQuizzes = async (req, res) => {
           };
         });
 
-        // ✅ Calculate summary
         let correct = 0,
           incorrect = 0,
           skipped = 0;
@@ -413,7 +393,6 @@ const getUserAttemptedQuizzes = async (req, res) => {
       })
     );
 
-    // ✅ Send response
     return res.status(200).json({
       status: 200,
       message: "User attempted quizzes fetched successfully!",
@@ -429,69 +408,41 @@ const getUserAttemptedQuizzes = async (req, res) => {
   }
 };
 
-
-
-
-
-
-
 const getSolvedQuizList = async (req, res, next) => {
   try {
-    const { 
-      user_id, 
-      search = "", 
-      page = 1, 
-      limit = 10 
-    } = req.body;
+    const { user_id, search = "", page = 1, limit = 10 } = req.query;
 
-    // 🧠 Validate
     if (!user_id) {
-      return res.status(400).json({
-        status: 400,
-        message: "user_id is required",
-      });
+      return res
+        .status(400)
+        .json({ status: 400, message: "user_id is required" });
     }
 
-    // 🧭 Pagination setup
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // ⚡ Get total count for pagination
-    const totalCount = await UserAttemptedQuiz.countDocuments({ user_id });
-
-    // 🧩 Fetch attempted quizzes with pagination, latest first
-    const attemptedQuizzes = await UserAttemptedQuiz.find({ user_id })
+    const allAttempts = await UserAttemptedQuiz.find({ user_id })
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum)
       .lean();
 
-    if (!attemptedQuizzes.length) {
-      return res.status(404).json({
-        status: 404,
-        message: "No attempted quizzes found for this user!",
-      });
-    }
+    const processedResults = [];
 
-    const results = [];
-
-    // ⚙️ Loop through each attempted quiz
-    for (const attempt of attemptedQuizzes) {
+    for (const attempt of allAttempts) {
       const quiz = await Quiz.findById(attempt.quiz_id)
         .populate("category_id", "category_name")
         .lean();
 
       if (!quiz) continue;
 
-      // 🕵️ Search filter (by quiz or category name)
+      const quizTitle = quiz.quiz_title || "Untitled Quiz";
+      const categoryName = quiz.category_id?.category_name || "Uncategorized";
+
       if (
         search &&
         !(
-          quiz.quiz_title.toLowerCase().includes(search.toLowerCase()) ||
-          quiz.category_id?.category_name
-            ?.toLowerCase()
-            .includes(search.toLowerCase())
+          quizTitle.toLowerCase().includes(search.toLowerCase()) ||
+          categoryName.toLowerCase().includes(search.toLowerCase())
         )
       ) {
         continue;
@@ -501,67 +452,87 @@ const getSolvedQuizList = async (req, res, next) => {
       let incorrect = 0;
       let skipped = 0;
 
-      // 🧮 Compare answers
-      quiz.question_group?.forEach((question, index) => {
-        const userQuestion = attempt.question_group?.[index];
-        if (!userQuestion) {
-          skipped++;
-          return;
-        }
+      const questionBreakdown = quiz.question_group?.map((adminQ) => {
+        const userQ = attempt.question_group?.find(
+          (uq) => uq.question_title === adminQ.question_title
+        );
 
-        const correctOption = question.options.find(o => o.answer === true);
-        const userChoice = userQuestion.options.find(o => o.answer === true);
+        const correctOpt = adminQ.options.find((o) => o.answer === true);
+        const userOpt = userQ?.options?.find((o) => o.answer === true);
 
-        if (!userChoice) {
-          skipped++;
-        } else if (
-          correctOption &&
-          userChoice.option_label === correctOption.option_label
-        ) {
-          correct++;
+        const allOptions = adminQ.options.map((opt) => ({
+          label: opt.option_label,
+          is_correct: opt.answer === true,
+        }));
+
+        let status = "skipped";
+        if (userOpt) {
+          if (userOpt.option_label === correctOpt?.option_label) {
+            status = "correct";
+            correct++;
+          } else {
+            status = "incorrect";
+            incorrect++;
+          }
         } else {
-          incorrect++;
+          skipped++;
         }
+
+        return {
+          question_title: adminQ.question_title,
+          status,
+          user_choice: userOpt?.option_label || null,
+          correct_answer: correctOpt?.option_label || null,
+          options: allOptions,
+        };
       });
 
-      results.push({
-        quiz_title: quiz.quiz_title,
-        category_name: quiz.category_id?.category_name || "N/A",
+      processedResults.push({
+        attempted_quiz_id: attempt._id,
+        quiz_id: quiz._id,
+        quiz_title: quizTitle,
+        category_name: categoryName,
         total_questions: quiz.question_group?.length || 0,
         correct,
         incorrect,
         skipped,
         attempted_on: attempt.createdAt,
+        detailed_questions: questionBreakdown,
       });
     }
 
-    // 🧹 After search filter, reapply pagination on final result if needed
-    const paginatedResults = results.slice(0, limitNum);
+    const totalFiltered = processedResults.length;
+    const paginatedData = processedResults.slice(skip, skip + limitNum);
+
+    const firstRecord = totalFiltered === 0 ? 0 : skip + 1;
+    const lastRecord = Math.min(skip + paginatedData.length, totalFiltered);
 
     return res.status(200).json({
       status: 200,
       message: "Solved quiz list fetched successfully!",
       pagination: {
-        totalItems: totalCount,
-        totalPages: Math.ceil(totalCount / limitNum),
+        totalItems: totalFiltered,
+        totalPages: Math.ceil(totalFiltered / limitNum),
         currentPage: pageNum,
         limit: limitNum,
+        firstRecord,
+        lastRecord,
       },
-      data: paginatedResults,
+      data: paginatedData,
     });
   } catch (error) {
     console.error("getSolvedQuizList error:", error);
-    return res.status(500).json({
-      status: 500,
-      message: "Internal Server Error",
-      error: error.message,
-    });
+    return res
+      .status(500)
+      .json({ status: 500, message: "Internal Server Error" });
   }
 };
 
-
-
-
-
-
-module.exports = { quizSaveQuestion, getQuizResult, reviewQuiz, retakeQuiz, getUserAttemptedQuizzes, getSolvedQuizList };
+module.exports = {
+  quizSaveQuestion,
+  getQuizResult,
+  reviewQuiz,
+  retakeQuiz,
+  getUserAttemptedQuizzes,
+  getSolvedQuizList,
+};

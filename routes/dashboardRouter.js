@@ -1,9 +1,8 @@
-const { adminCounts } = require('../controllers/DashboardController');
-const auth = require('../middlewares/Authentication');
+const { adminCounts } = require("../controllers/DashboardController");
+const auth = require("../middlewares/Authentication");
 
-const router = require('express').Router();
+const router = require("express").Router();
 
+router.get("/admin/counts", auth, adminCounts);
 
-router.get('/admin/counts', auth, adminCounts)
-
-module.exports = router
+module.exports = router;

@@ -9,7 +9,7 @@ const createCategory = async (req, res, next) => {
     category_name: Joi.string().required(),
     slug: Joi.string().required(),
     sort_order: Joi.number().required(),
-    image: Joi.string().allow("").optional()
+    image: Joi.string().allow("").optional(),
   });
   let { error } = categorySchema.validate(req.body);
   if (error) {
@@ -23,7 +23,6 @@ const createCategory = async (req, res, next) => {
         status: 409,
         message: "Category already exist!",
       };
-      console.log(category.slug, "------->");
       return next(error);
     }
     const slugExist = await Category.findOne({ slug });
@@ -93,44 +92,48 @@ const deleteCategory = async (req, res, next) => {
   }
 };
 
-const updateCategory = async (req, res, next)=>{
-  console.log(req.body, '------>>---')
-    const updateCategorySchema = Joi.object({
-        id: Joi.string().required(),
-        business_id: Joi.string().required(),
-        image: Joi.string().allow("").optional(),
-        category_name: Joi.string().required(),
-        slug: Joi.string().required(),
-        sort_order: Joi.number().required()
-    })
-    const {error} = updateCategorySchema.validate(req.body);
-    if(error){
-        return next(error);
-    }
-    const {business_id, id, image, category_name, slug, sort_order} = req.body;
+const updateCategory = async (req, res, next) => {
+  const updateCategorySchema = Joi.object({
+    id: Joi.string().required(),
+    business_id: Joi.string().required(),
+    image: Joi.string().allow("").optional(),
+    category_name: Joi.string().required(),
+    slug: Joi.string().required(),
+    sort_order: Joi.number().required(),
+  });
+  const { error } = updateCategorySchema.validate(req.body);
+  if (error) {
+    return next(error);
+  }
+  const { business_id, id, image, category_name, slug, sort_order } = req.body;
 
-    try {
-        const category = await Category.findOne({business_id, _id: id});
-        if(!category){
-            const error = {
-                status: 409,
-                message: 'Category not exist!'
-            }
-            return next(error);
-        }
-
-        await Category.updateOne({business_id, _id: id}, {category_name, slug, sort_order, image});
-        return res.status(200).json({status: 200, message: 'Category Successfully Updated!'})
-    } catch (error) {
-        return res.status(500).json({message: 'Internal server error!', error});
+  try {
+    const category = await Category.findOne({ business_id, _id: id });
+    if (!category) {
+      const error = {
+        status: 409,
+        message: "Category not exist!",
+      };
+      return next(error);
     }
-}
+
+    await Category.updateOne(
+      { business_id, _id: id },
+      { category_name, slug, sort_order, image }
+    );
+    return res
+      .status(200)
+      .json({ status: 200, message: "Category Successfully Updated!" });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error!", error });
+  }
+};
 
 const getAllCategories = async (req, res, next) => {
   const getAllCategoriesSchema = Joi.object({
     business_id: Joi.string().required(),
     page: Joi.number().integer().min(1).default(1),
-    limit: Joi.number().integer().min(1).max(100).default(5),
+    limit: Joi.number().integer().min(1).max(10000).default(5),
     search: Joi.string().allow("").optional(),
   });
 
@@ -195,12 +198,9 @@ const getAllCategories = async (req, res, next) => {
   }
 };
 
-
-
-
 const deleteSelectedCategory = async (req, res, next) => {
   try {
-    const categories = req.body; // expecting array of {id, business_id}
+    const categories = req.body;
 
     if (!Array.isArray(categories) || categories.length === 0) {
       return res
@@ -311,15 +311,11 @@ const getAllCategoriesWebsite = async (req, res, next) => {
   }
 };
 
-
-
-
-
 module.exports = {
   createCategory,
   deleteCategory,
   updateCategory,
   getAllCategories,
   deleteSelectedCategory,
-  getAllCategoriesWebsite
+  getAllCategoriesWebsite,
 };
