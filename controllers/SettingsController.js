@@ -4,7 +4,6 @@ const generalSettings = async (req, res, next) => {
   try {
     const { business_id, general } = req.body;
 
-    // ✅ Basic validation
     if (!business_id) {
       return res.status(400).json({
         status: 400,
@@ -19,7 +18,6 @@ const generalSettings = async (req, res, next) => {
       });
     }
 
-    // ✅ Upsert logic (update if exists, create if not)
     const updatedSetting = await WebsiteSetting.findOneAndUpdate(
       { business_id },
       { $set: { general } },
@@ -41,14 +39,6 @@ const generalSettings = async (req, res, next) => {
   }
 };
 
-
-
-
-
-
-
-
-
 const getGeneralSettings = async (req, res) => {
   try {
     const { business_id } = req.query;
@@ -65,13 +55,11 @@ const getGeneralSettings = async (req, res) => {
       { general: 1, _id: 0 }
     ).lean();
 
-    // ✅ SAFE RETURN
     return res.status(200).json({
       status: 200,
       message: "General settings fetched successfully!",
       data: setting?.general ?? null,
     });
-
   } catch (error) {
     console.error("getGeneralSettings error:", error);
     return res.status(500).json({
@@ -82,20 +70,10 @@ const getGeneralSettings = async (req, res) => {
   }
 };
 
-
-
-
-
-
-
-
-
-
 const createOrUpdateSocialLinks = async (req, res, next) => {
   try {
     const { business_id, social_links } = req.body;
 
-    // 🧩 Validate input
     if (!business_id) {
       return res.status(400).json({
         status: 400,
@@ -110,7 +88,6 @@ const createOrUpdateSocialLinks = async (req, res, next) => {
       });
     }
 
-    // 🔄 Upsert (create if not exists, update if exists)
     const updated = await WebsiteSetting.findOneAndUpdate(
       { business_id },
       { $set: { social_links } },
@@ -132,13 +109,10 @@ const createOrUpdateSocialLinks = async (req, res, next) => {
   }
 };
 
-
-
 const getSocialLinks = async (req, res, next) => {
   try {
     const { business_id } = req.query;
 
-    // 🧩 Validate business_id
     if (!business_id) {
       return res.status(400).json({
         status: 400,
@@ -146,21 +120,11 @@ const getSocialLinks = async (req, res, next) => {
       });
     }
 
-    // 🔍 Fetch only the social_links field
     const setting = await WebsiteSetting.findOne(
       { business_id },
       { social_links: 1, _id: 0 }
     ).lean();
 
-    // ⚠️ Handle no data
-    if (!setting || !setting.social_links) {
-      return res.status(404).json({
-        status: 404,
-        message: "No social links found for this business!",
-      });
-    }
-
-    // ✅ Success response
     return res.status(200).json({
       status: 200,
       message: "Social links fetched successfully!",
@@ -180,7 +144,6 @@ const createOrUpdateWebsiteServices = async (req, res, next) => {
   try {
     const { business_id, website_services } = req.body;
 
-    // 🧩 Validate required fields
     if (!business_id) {
       return res.status(400).json({
         status: 400,
@@ -195,7 +158,6 @@ const createOrUpdateWebsiteServices = async (req, res, next) => {
       });
     }
 
-    // 🔄 Upsert (create new or update existing)
     const updated = await WebsiteSetting.findOneAndUpdate(
       { business_id },
       { $set: { website_services } },
@@ -221,7 +183,6 @@ const getWebsiteServices = async (req, res, next) => {
   try {
     const { business_id } = req.query;
 
-    // 🧩 Validate input
     if (!business_id) {
       return res.status(400).json({
         status: 400,
@@ -229,19 +190,10 @@ const getWebsiteServices = async (req, res, next) => {
       });
     }
 
-    // 🔍 Fetch data
     const setting = await WebsiteSetting.findOne({ business_id })
       .select("website_services -_id")
       .lean();
 
-    // if (!setting || !setting.website_services) {
-    //   return res.status(404).json({
-    //     status: 404,
-    //     message: "No website services found for this business_id!",
-    //   });
-    // }
-
-    // ✅ Success response
     return res.status(200).json({
       status: 200,
       message: "Website services fetched successfully!",
@@ -257,27 +209,10 @@ const getWebsiteServices = async (req, res, next) => {
   }
 };
 
-
-
-
-
-
-
-
-
 const getWebsiteData = async (req, res, next) => {
   try {
-    // 🧩 Fetch the first available website settings record
     const setting = await WebsiteSetting.findOne().lean();
 
-    if (!setting) {
-      return res.status(404).json({
-        status: 404,
-        message: "Website data not found!",
-      });
-    }
-
-    // ✅ Prepare response (safe optional chaining)
     const response = {
       header_logo: setting?.general?.header_logo || "",
       footer_logo: setting?.general?.footer_logo || "",
@@ -292,12 +227,11 @@ const getWebsiteData = async (req, res, next) => {
         facebook: "",
         instagram: "",
         tiktok: "",
-        whatsapp: "",
+        linkedin: "",
       },
       website_mode: setting?.website_services?.website_mode?.mode || 1,
     };
 
-    // 🚀 Send formatted success response
     return res.status(200).json({
       status: 200,
       message: "Website data fetched successfully!",
@@ -313,13 +247,12 @@ const getWebsiteData = async (req, res, next) => {
   }
 };
 
-
 module.exports = {
-    generalSettings,
-    getGeneralSettings,
-    createOrUpdateSocialLinks,
-    getSocialLinks,
-    createOrUpdateWebsiteServices,
-    getWebsiteServices,
-    getWebsiteData
-}
+  generalSettings,
+  getGeneralSettings,
+  createOrUpdateSocialLinks,
+  getSocialLinks,
+  createOrUpdateWebsiteServices,
+  getWebsiteServices,
+  getWebsiteData,
+};

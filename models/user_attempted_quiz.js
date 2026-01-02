@@ -2,17 +2,16 @@ const mongoose = require("mongoose");
 
 const { Schema } = mongoose;
 
-// Option schema (for each question)
 const OptionSchema = new Schema(
   {
     option_label: { type: String, required: true },
     option_sort_order: { type: Number, default: 1 },
-    answer: { type: Boolean, default: false }, // whether user marked as correct
+    is_correct: { type: Boolean, default: false },
+    answer: { type: Boolean, default: false },
   },
   { _id: false }
 );
 
-// Question schema
 const QuestionSchema = new Schema(
   {
     question_title: { type: String, required: true },
@@ -24,7 +23,6 @@ const QuestionSchema = new Schema(
   { _id: false }
 );
 
-// Main User Attempted Quiz schema
 const UserAttemptedQuizSchema = new Schema(
   {
     user_id: { type: String, required: true },

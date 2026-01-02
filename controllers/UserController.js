@@ -32,7 +32,6 @@ const signup = async (req, res, next) => {
   } catch (error) {
     return next(error);
   }
-  // password hash
   const passwordHash = await bcrypt.hash(password, 10);
   let signupUser;
 
@@ -48,14 +47,15 @@ const signup = async (req, res, next) => {
     return next(error);
   }
 
-  return res.status(201).json({ message: "User Created Successfully!", status: 200 });
+  return res
+    .status(201)
+    .json({ message: "User Created Successfully!", status: 200 });
 };
 
 const users = async (req, res) => {
   try {
-    // Extract query params (support both body and query)
     const {
-      type = 1,
+      type = 2,
       search = "",
       page = 1,
       limit = 10,
@@ -65,60 +65,74 @@ const users = async (req, res) => {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // Build query object dynamically
-    const query = {};
-    if (type) query.type = type;
+    const matchQuery = { type: parseInt(type) };
     if (search.trim()) {
-      query.$or = [
-        { name: { $regex: search, $options: "i" } }, // case-insensitive search
+      matchQuery.$or = [
+        { name: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
       ];
     }
 
-    // Fetch users with pagination
-    const [users, total] = await Promise.all([
-      User.find(query)
-        .sort({ createdAt: -1 }) // newest first
-        .skip(skip)
-        .limit(limitNum)
-        .lean(),
-      User.countDocuments(query),
+    const aggregatePipeline = [
+      { $match: matchQuery },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limitNum },
+      {
+        $lookup: {
+          from: "user_attempted_quiz",
+          let: { userIdStr: { $toString: "$_id" } },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$user_id", "$$userIdStr"] },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+          ],
+          as: "attempted_quizzes",
+        },
+      },
+      {
+        $project: {
+          password: 0,
+          __v: 0,
+        },
+      },
+    ];
+
+    const [usersList, total] = await Promise.all([
+      User.aggregate(aggregatePipeline),
+      User.countDocuments(matchQuery),
     ]);
 
-    if (!users || users.length === 0) {
-      return res.status(404).json({
-        status: 404,
-        message: "No users found",
-      });
+    if (!usersList || usersList.length === 0) {
+      return res.status(404).json({ status: 404, message: "No users found" });
     }
 
-    // Calculate first and last record
+    const totalPages = Math.ceil(total / limitNum);
     const firstRecord = total === 0 ? 0 : skip + 1;
-    const lastRecord = Math.min(skip + users.length, total);
+    const lastRecord = Math.min(skip + usersList.length, total);
 
     return res.status(200).json({
       status: 200,
-      message: "Users fetched successfully!",
-      data: users,
+      message: "Data fetched successfully!",
+      data: usersList,
       pagination: {
         totalItems: total,
-        totalPages: Math.ceil(total / limitNum),
+        totalPages: totalPages,
         currentPage: pageNum,
         limit: limitNum,
-        firstRecord,
-        lastRecord,
+        firstRecord: firstRecord,
+        lastRecord: lastRecord,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
       },
     });
   } catch (error) {
-    return res.status(500).json({
-      status: 500,
-      message: "Internal Server Error",
-      error: error.message,
-    });
+    return res.status(500).json({ status: 500, message: error.message });
   }
 };
-
-
 
 const login = async (req, res, next) => {
   const loginSchema = Joi.object({
@@ -213,7 +227,6 @@ const getUserDetails = async (req, res, next) => {
   try {
     const { user_id } = req.query;
 
-    // 🧠 Validate
     if (!user_id) {
       return res.status(400).json({
         status: 400,
@@ -221,7 +234,6 @@ const getUserDetails = async (req, res, next) => {
       });
     }
 
-    // 🔍 Find user (excluding password)
     const user = await User.findById(user_id)
       .select(
         "name email type image cover_image phone country createdAt updatedAt"
@@ -235,7 +247,6 @@ const getUserDetails = async (req, res, next) => {
       });
     }
 
-    // ✅ Success
     return res.status(200).json({
       status: 200,
       message: "User details fetched successfully!",
@@ -255,7 +266,6 @@ const updateUserProfile = async (req, res, next) => {
   try {
     const { user_id, name, email, phone, country } = req.body;
 
-    // 🧠 Validate required field
     if (!user_id) {
       return res.status(400).json({
         status: 400,
@@ -263,13 +273,11 @@ const updateUserProfile = async (req, res, next) => {
       });
     }
 
-    // 🖼️ Handle uploaded images (if any)
     const image = req.files?.image ? req.files.image[0].filename : null;
     const cover_image = req.files?.cover_image
       ? req.files.cover_image[0].filename
       : null;
 
-    // 🧩 Build update object dynamically
     const updateData = {};
     if (name) updateData.name = name;
     if (email) updateData.email = email;
@@ -278,11 +286,10 @@ const updateUserProfile = async (req, res, next) => {
     if (image) updateData.image = image;
     if (cover_image) updateData.cover_image = cover_image;
 
-    // ⚡ Update user profile
     const updatedUser = await User.findByIdAndUpdate(
       user_id,
       { $set: updateData },
-      { new: true, select: "-password" } // exclude password
+      { new: true, select: "-password" }
     ).lean();
 
     if (!updatedUser) {
@@ -292,7 +299,6 @@ const updateUserProfile = async (req, res, next) => {
       });
     }
 
-    // ✅ Success response
     return res.status(200).json({
       status: 200,
       message: "Profile updated successfully!",

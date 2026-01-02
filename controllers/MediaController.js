@@ -1,5 +1,5 @@
-const Media = require('../models/media')
-const Joi = require('joi');
+const Media = require("../models/media");
+const Joi = require("joi");
 
 const fs = require("fs");
 const path = require("path");
@@ -8,7 +8,6 @@ const addMediaImage = async (req, res, next) => {
     const { business_id } = req.body;
     const mediaImage = req.file;
 
-    // ✅ Validate input
     if (!business_id) {
       return res.status(400).json({
         status: 400,
@@ -23,16 +22,13 @@ const addMediaImage = async (req, res, next) => {
       });
     }
 
-    // ✅ Extract image filename (from multer)
     const image = mediaImage.filename;
 
-    // ✅ Save record to MongoDB
     const result = await Media.create({
       business_id,
       image,
     });
 
-    // ✅ Send success response
     return res.status(200).json({
       status: 200,
       message: "Image uploaded successfully!",
@@ -118,8 +114,6 @@ const getMediaImage = async (req, res, next) => {
   }
 };
 
-
-
 const deleteMediaImage = async (req, res) => {
   try {
     const { id } = req.params;
@@ -164,9 +158,8 @@ const deleteMediaImage = async (req, res) => {
   }
 };
 
-
 module.exports = {
-    addMediaImage,
-    getMediaImage,
-    deleteMediaImage
-}
+  addMediaImage,
+  getMediaImage,
+  deleteMediaImage,
+};

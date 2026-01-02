@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 
 const OptionSchema = new mongoose.Schema(
@@ -7,14 +6,14 @@ const OptionSchema = new mongoose.Schema(
     option_sort_order: { type: Number, default: 1 },
     answer: { type: Boolean, default: false },
   },
-  { _id: false } // prevent extra _id inside each option
+  { _id: false }
 );
 
 const QuestionSchema = new mongoose.Schema(
   {
     question_title: { type: String, required: true },
     question_sort_order: { type: Number, default: 1 },
-    question_type: { type: Number, required: true }, // e.g., 1 = MCQ, 2 = True/False
+    question_type: { type: Number, required: true },
     question_time: { type: String, default: "" },
     options: [OptionSchema],
   },
@@ -29,19 +28,19 @@ const QuizSchema = new mongoose.Schema(
     business_id: {
       type: String,
       required: true,
-      index: true, // improves query performance
+      index: true,
     },
     image: {
-      type: String, // URL or file path
+      type: String,
       default: "",
     },
     status: {
-        type: Boolean,
-        required: true,
+      type: Boolean,
+      required: true,
     },
     category_id: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Category", // reference to your Category model
+      ref: "Category",
       required: true,
     },
     question_group: [QuestionSchema],
@@ -49,6 +48,6 @@ const QuizSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const QuizList = mongoose.model("QuizList", QuizSchema, 'quiz-list');
+const QuizList = mongoose.model("QuizList", QuizSchema, "quiz-list");
 
 module.exports = QuizList;

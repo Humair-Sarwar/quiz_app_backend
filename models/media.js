@@ -1,20 +1,21 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const {Schema} = mongoose
+const { Schema } = mongoose;
 
-const mediaSchema = new Schema({
+const mediaSchema = new Schema(
+  {
     business_id: {
-        type: String,
-        required: true
+      type: String,
+      required: true,
     },
     image: {
-        type: String,
-        required: true
+      type: String,
+      required: true,
     },
-    
-}, {
-    timestamps: true
-})
+  },
+  {
+    timestamps: true,
+  }
+);
 
-
-module.exports = mongoose.model('Media', mediaSchema, 'media');
+module.exports = mongoose.model("Media", mediaSchema, "media");
