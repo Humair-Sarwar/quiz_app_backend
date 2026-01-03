@@ -213,6 +213,11 @@ const getWebsiteData = async (req, res, next) => {
   try {
     const setting = await WebsiteSetting.findOne().lean();
 
+    const rawPromotions = setting?.general?.promotional_items || [];
+    const validPromotions = rawPromotions.filter(
+      (item) => item && item.title && item.title.toString().trim() !== ""
+    );
+
     const response = {
       header_logo: setting?.general?.header_logo || "",
       footer_logo: setting?.general?.footer_logo || "",
@@ -222,7 +227,9 @@ const getWebsiteData = async (req, res, next) => {
       footer_description: setting?.general?.footer_description || "",
       show_whatsapp_icon: setting?.general?.show_whatsapp_icon || false,
       whatsapp_no: setting?.general?.whatsapp_no || "",
-      promotional_items: setting?.general?.promotional_items || [],
+
+      promotional_items: validPromotions,
+
       social_links: setting?.social_links?.[0] || {
         facebook: "",
         instagram: "",
