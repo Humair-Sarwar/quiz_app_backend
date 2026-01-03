@@ -1,7 +1,6 @@
 const Joi = require("joi");
 const bcrypt = require("bcrypt");
 const User = require("../models/user");
-const Media = require("../models/media");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const signup = async (req, res, next) => {
@@ -273,10 +272,8 @@ const updateUserProfile = async (req, res, next) => {
       });
     }
 
-    const image = req.files?.image ? req.files.image[0].filename : null;
-    const cover_image = req.files?.cover_image
-      ? req.files.cover_image[0].filename
-      : null;
+    const image = req.files?.image ? req.files.image[0].path : null;
+    const cover_image = req.files?.cover_image ? req.files.cover_image[0].path : null;
 
     const updateData = {};
     if (name) updateData.name = name;
