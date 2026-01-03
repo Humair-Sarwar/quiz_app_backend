@@ -73,4 +73,4 @@ Robust File Processing
 The backend is optimized to handle binary file streams. It supports simultaneous updates for multiple image fields (e.g., Profile and Cover photos) while managing file storage naming conventions to prevent collisions.
 
 Database Performance
-Utilizes Mongoose aggregation pipelines and indexing to ensure that even with thousands of quiz questions, data retrieval remains lightning-fast.
+Utilizes Mongoose aggregation pipelines & indexing to ensure that even with thousands of quiz questions, data retrieval remains lightning-fast.
